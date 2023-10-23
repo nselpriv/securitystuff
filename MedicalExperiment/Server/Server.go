@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
-	proto "medic/Proto"
 	"log"
+	proto "medic/Proto"
 	"net"
 	"strconv"
+
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 
@@ -40,7 +43,7 @@ func main () {
 
 
 func startServer (server *Server) {
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(loadCerts()))
 
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(server.port))
 
@@ -65,4 +68,19 @@ func (c *Server) SendPersonalInfo(ctx context.Context, in *proto.PersonalInfo) (
 	return &proto.ServerResponse{
 		Success: false,
 	}, nil
+}
+
+func loadCerts() credentials.TransportCredentials {
+	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+    if err != nil {
+        log.Fatalf("Failed to load certificates: %v", err)
+    }
+
+	 // Create a gRPC server with TLS configuration
+		creds := credentials.NewTLS(&tls.Config{
+        Certificates: []tls.Certificate{cert},
+        ClientAuth:   tls.NoClientCert,
+        // You may want to add more configurations as needed
+    })
+	return creds
 }

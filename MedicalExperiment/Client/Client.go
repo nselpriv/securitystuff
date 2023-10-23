@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
@@ -40,6 +42,9 @@ func main () {
 
 	cp := int(*cid)+5001
 
+	
+	
+
 	var name string
 	switch *cid {
 	case 0:
@@ -62,8 +67,9 @@ func main () {
 		clients: make(map[int32]proto.PersonClient),
 	}
 
+	credentials := loadCerts()
 	// Create listener tcp on port ownPort
-	go SetupPeerConnection(client)
+	go SetupPeerConnection(client, credentials)
 	go SetupHospitalConnection(client)
 
 	
@@ -74,14 +80,29 @@ func main () {
 
 }
 
-func SetupPeerConnection(client *Client) {
+func loadCerts() credentials.TransportCredentials {
+	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
+    if err != nil {
+        log.Fatalf("Failed to load certificates: %v", err)
+    }
+
+	 // Create a gRPC server with TLS configuration
+		creds := credentials.NewTLS(&tls.Config{
+        Certificates: []tls.Certificate{cert},
+        ClientAuth:   tls.NoClientCert,
+        // You may want to add more configurations as needed
+    })
+	return creds
+}
+
+func SetupPeerConnection(client *Client, c credentials.TransportCredentials) {
 
 	//setup own connection 
 	list, err := net.Listen("tcp", fmt.Sprintf(":%v", client.ownPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on port: %v", err)
 	}
-	grpcServer := grpc.NewServer()
+	grpcServer := grpc.NewServer(grpc.Creds(c))
 	proto.RegisterPersonServer(grpcServer, client)
 
 	go func() {
@@ -97,7 +118,7 @@ func SetupPeerConnection(client *Client) {
 		if port == int32(client.ownPort) {
 			continue
 		}
-
+		
 		var conn *grpc.ClientConn
 		log.Printf("Trying to dial: %v\n", port)
 		conn, err := grpc.Dial(fmt.Sprintf(":%v", port), grpc.WithInsecure(), grpc.WithBlock())

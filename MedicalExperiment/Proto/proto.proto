@@ -20,8 +20,6 @@ message ServerResponse {
     bool success = 1;
 }
 
-message Close{}
-
 service person{
     rpc Share(ShareInfo) returns (Reply) {}
     

@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package medic;
+option go_package = "./Proto";
+
+message ShareInfo{
+    int32 id = 1;
+    int32 Timestamp = 2;
+}
+message Reply{
+    int32 id = 1;
+    int32 Timestamp = 2;
+}
+
+message PersonalInfo {
+    string content = 1;
+}
+
+message ServerResponse {
+    bool success = 1;
+}
+
+message Close{}
+
+service person{
+    rpc Share(ShareInfo) returns (Reply) {}
+    
+}
+
+service hospital{
+    rpc SendPersonalInfo(PersonalInfo) returns (ServerResponse);
+}
+

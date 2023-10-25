@@ -4,17 +4,15 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"flag"
 	"fmt"
 	"log"
 	proto "medic/Proto"
 	"net"
 	"os"
-	"strconv"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Client struct {
@@ -67,11 +65,10 @@ func main () {
 		clients: make(map[int32]proto.PersonClient),
 	}
 
-	credentials := loadCerts()
+	credentials := loadCertsServer()
 	// Create listener tcp on port ownPort
 	go SetupPeerConnection(client, credentials)
 	go SetupHospitalConnection(client)
-
 	
 
 	for {
@@ -80,20 +77,27 @@ func main () {
 
 }
 
-func loadCerts() credentials.TransportCredentials {
+func loadCertsServer() credentials.TransportCredentials {
 	cert, err := tls.LoadX509KeyPair("cert.pem", "key.pem")
     if err != nil {
         log.Fatalf("Failed to load certificates: %v", err)
     }
-
 	 // Create a gRPC server with TLS configuration
-		creds := credentials.NewTLS(&tls.Config{
-        Certificates: []tls.Certificate{cert},
-        ClientAuth:   tls.NoClientCert,
-        // You may want to add more configurations as needed
-    })
+	creds := credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{cert}})
+
 	return creds
 }
+
+func loadCertsClient() *x509.CertPool {
+	certPool := x509.NewCertPool()
+caCert, err := os.ReadFile("cert.pem")
+if err != nil {
+    log.Fatalf("Failed to load server certificate: %v", err)
+}
+certPool.AppendCertsFromPEM(caCert)
+return certPool
+}
+
 
 func SetupPeerConnection(client *Client, c credentials.TransportCredentials) {
 
@@ -121,13 +125,14 @@ func SetupPeerConnection(client *Client, c credentials.TransportCredentials) {
 		
 		var conn *grpc.ClientConn
 		log.Printf("Trying to dial: %v\n", port)
-		conn, err := grpc.Dial(fmt.Sprintf(":%v", port), grpc.WithInsecure(), grpc.WithBlock())
+		conn, err := grpc.Dial(fmt.Sprintf(":%v", port), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(loadCertsClient(), "")))
 		if err != nil {
 			log.Fatalf("Could not connect: %s", err)
 		}
 		defer conn.Close()
 		c := proto.NewPersonClient(conn)
 		client.clients[port] = c
+		log.Printf("Connected to: %v\n", port)
 	}
 }
 
@@ -155,7 +160,7 @@ func SetupHospitalConnection(client *Client) {
 
 
 func connectToHospital() (proto.HospitalClient, error) {
-	conn, err := grpc.Dial("localhost:"+strconv.Itoa(*serverPort), grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.Dial(fmt.Sprintf(":%v", *serverPort), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(loadCertsClient(), "")))
 	if err != nil {
 		log.Fatalf("Could not connect to port %d", *serverPort)
 	} else {

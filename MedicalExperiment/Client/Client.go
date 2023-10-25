@@ -11,6 +11,8 @@ import (
 	proto "medic/Proto"
 	"net"
 	"os"
+	"strconv"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -21,6 +23,7 @@ type Client struct {
 	name 	 string
 	ownPort int
 	clients     map[int32]proto.PersonClient
+	hospitalConnection proto.HospitalClient
 	ctx         context.Context
 }
 
@@ -63,14 +66,49 @@ func main () {
 		ownPort: cp,
 		ctx: ctx,
 		clients: make(map[int32]proto.PersonClient),
+		hospitalConnection: nil,
 	}
 
-	credentials := loadCertsServer()
-	// Create listener tcp on port ownPort
-	go SetupPeerConnection(client, credentials)
-	go SetupHospitalConnection(client)
 	
+	// Create listener tcp on port ownPort
+	go SetupPeerConnection(client)
+	go SetupHospitalConnection(client)
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		input := scanner.Text()
+		log.Printf("client sent %s\n", input)
 
+		if input == "hospital" {
+				message, err := client.hospitalConnection.SendPersonalInfo(context.Background(), 
+			&proto.PersonalInfo{Content: input})
+			if err != nil {
+				log.Printf("error is %s" , err.Error())
+			} else {
+				log.Printf("Server returned %t" , message.Success)
+			}
+		} else {
+			for _, c := range client.clients {
+				conv, inputerror := strconv.Atoi(input)
+				if inputerror != nil {
+					fmt.Printf("You need to share a number with the other clients \n")
+					break
+				}
+				message, err := c.Share(context.Background(), 
+			&proto.ShareInfo{
+				Id: int32(client.id),
+				Timestamp: int32(conv),
+				})
+			if err != nil {
+				log.Printf("error is %s" , err.Error())
+			} else {
+				log.Printf("Server returned %v" , message.Timestamp)
+			}
+			}
+		}
+	}
+
+
+		
 	for {
 
 	}
@@ -99,14 +137,14 @@ return certPool
 }
 
 
-func SetupPeerConnection(client *Client, c credentials.TransportCredentials) {
-
+func SetupPeerConnection(client *Client) {
+	
 	//setup own connection 
 	list, err := net.Listen("tcp", fmt.Sprintf(":%v", client.ownPort))
 	if err != nil {
 		log.Fatalf("Failed to listen on port: %v", err)
 	}
-	grpcServer := grpc.NewServer(grpc.Creds(c))
+	grpcServer := grpc.NewServer(grpc.Creds(loadCertsServer()))
 	proto.RegisterPersonServer(grpcServer, client)
 
 	go func() {
@@ -129,7 +167,6 @@ func SetupPeerConnection(client *Client, c credentials.TransportCredentials) {
 		if err != nil {
 			log.Fatalf("Could not connect: %s", err)
 		}
-		defer conn.Close()
 		c := proto.NewPersonClient(conn)
 		client.clients[port] = c
 		log.Printf("Connected to: %v\n", port)
@@ -138,33 +175,21 @@ func SetupPeerConnection(client *Client, c credentials.TransportCredentials) {
 
 
 func SetupHospitalConnection(client *Client) {
-	serverConnection, _ := connectToHospital()
 
-	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
-		input := scanner.Text()
-		log.Printf("client asked for the with input %s\n", input)
-
-		message, err := serverConnection.SendPersonalInfo(context.Background(), 
-		&proto.PersonalInfo{Content: input})
-
-
-		if err != nil {
-			log.Printf("error is %s" , err.Error())
-		} else {
-			log.Printf("Server returned %t" , message.Success)
-		}
-	}
-
-}
-
-
-func connectToHospital() (proto.HospitalClient, error) {
 	conn, err := grpc.Dial(fmt.Sprintf(":%v", *serverPort), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(loadCertsClient(), "")))
 	if err != nil {
 		log.Fatalf("Could not connect to port %d", *serverPort)
 	} else {
 		log.Printf("connected to the server at port %d \n", *serverPort)
 	}
-	return proto.NewHospitalClient(conn), nil
+	client.hospitalConnection = proto.NewHospitalClient(conn)
+}
+
+func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, error) {
+
+	log.Printf("client sent %d \n", in.Timestamp)
+	return &proto.Reply{
+		Id: in.Id,
+		Timestamp: in.Timestamp,
+	}, nil
 }

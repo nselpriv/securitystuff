@@ -8,11 +8,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	proto "medic/Proto"
 	"net"
 	"os"
 	"strconv"
-
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -25,7 +25,9 @@ type Client struct {
 	clients     map[int32]proto.PersonClient
 	hospitalConnection proto.HospitalClient
 	ctx         context.Context
+	shares map[string]int
 }
+
 
 var amount_of_peers = 3
 
@@ -43,7 +45,6 @@ func main () {
 
 	cp := int(*cid)+5001
 
-	
 	
 
 	var name string
@@ -67,7 +68,9 @@ func main () {
 		ctx: ctx,
 		clients: make(map[int32]proto.PersonClient),
 		hospitalConnection: nil,
+		shares: map[string]int{"Alice": -9999, "Bob": -9999,"Charlie":-9999},
 	}
+
 
 	
 	// Create listener tcp on port ownPort
@@ -76,33 +79,49 @@ func main () {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		input := scanner.Text()
-		log.Printf("client sent %s\n", input)
+		log.Printf("client input:  %s\n", input)
 
 		if input == "hospital" {
+			v1,v2,v3 := getAllShares(client.shares)
 				message, err := client.hospitalConnection.SendPersonalInfo(context.Background(), 
-			&proto.PersonalInfo{Content: input})
+			&proto.PersonalInfo{
+				Name: client.name,
+				First: v1,
+				Second: v2,
+				Third: v3,
+			})
 			if err != nil {
 				log.Printf("error is %s" , err.Error())
 			} else {
 				log.Printf("Server returned %t" , message.Success)
 			}
 		} else {
+			
+			conv, inputerror := strconv.Atoi(input)
+			if inputerror != nil {
+				fmt.Printf("You need to share a number with the other clients \n")
+				continue
+			}
+			n1,n2,n3 := MPCScramble(conv)
+			client.shares[client.name] = n1  //setting own secret share
+			log.Printf("Scrables from %v are first %v second %v third %v \n", conv, n1,n2,n3)
+			count := 0 
 			for _, c := range client.clients {
-				conv, inputerror := strconv.Atoi(input)
-				if inputerror != nil {
-					fmt.Printf("You need to share a number with the other clients \n")
-					break
-				}
+				var share int64
+				if(count == 0){
+					share = int64(n2)
+				} else {share = int64(n3)}
 				message, err := c.Share(context.Background(), 
 			&proto.ShareInfo{
-				Id: int32(client.id),
-				Timestamp: int32(conv),
-				})
+				Share: share,
+				Name: client.name,
+			})
 			if err != nil {
 				log.Printf("error is %s" , err.Error())
 			} else {
-				log.Printf("Server returned %v" , message.Timestamp)
+				log.Printf("%s\n" ,message.Status)
 			}
+			count++
 			}
 		}
 	}
@@ -187,9 +206,43 @@ func SetupHospitalConnection(client *Client) {
 
 func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, error) {
 
-	log.Printf("client sent %d \n", in.Timestamp)
-	return &proto.Reply{
-		Id: in.Id,
-		Timestamp: in.Timestamp,
+	log.Printf("%s sent %d \n", in.Name, in.Share)
+	c.shares[in.Name] = int(in.Share)
+	v := strconv.Itoa(int(in.Share))
+	msg := c.name + " set " + v + " for " + in.Name
+		return &proto.Reply{
+		Status: msg,
 	}, nil
+}
+
+func MPCScramble (number int) (first,second,third int) {
+first = rand.Intn(number-3)
+if(randBool()){
+	first = first *-1
+}
+
+for {
+gen := rand.Intn(number)
+if(gen + first < number){
+	second = gen 
+	if(randBool()){
+		second=second*-1
+		}
+	third = number - first - second 
+	return
+	}
+}
+
+}
+
+//generates a random bool 
+func randBool() bool{
+return rand.Intn(2) == 0
+}
+
+func getAllShares(m map[string]int) (n1,n2,n3 int64){
+	n1=int64(m["Alice"])
+	n2=int64(m["Bob"])
+	n3=int64(m["Charlie"])
+	return
 }

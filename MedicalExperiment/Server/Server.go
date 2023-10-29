@@ -64,7 +64,7 @@ func startServer (server *Server) {
 
 func (c *Server) SendPersonalInfo(ctx context.Context, in *proto.PersonalInfo) (*proto.ServerResponse, error) {
 
-	log.Printf("client sent %s \n", in.Content)
+	log.Printf("client sent %s \n", in.Name)
 	return &proto.ServerResponse{
 		Success: false,
 	}, nil

@@ -4,16 +4,19 @@ package medic;
 option go_package = "./Proto";
 
 message ShareInfo{
-    int32 id = 1;
-    int32 Timestamp = 2;
+    int64 share = 1;
+    string name = 2;
 }
 message Reply{
-    int32 id = 1;
-    int32 Timestamp = 2;
+    string status = 1;
 }
 
 message PersonalInfo {
-    string content = 1;
+    string name = 1;
+    int64 first = 2;
+    int64 second = 3;
+    int64 third = 4; 
+
 }
 
 message ServerResponse {

@@ -82,18 +82,20 @@ func main () {
 		log.Printf("client input:  %s\n", input)
 
 		if input == "hospital" {
-			v1,v2,v3 := getAllShares(client.shares)
+			sum := getSumOfShares(client.shares)
 				message, err := client.hospitalConnection.SendPersonalInfo(context.Background(), 
 			&proto.PersonalInfo{
 				Name: client.name,
-				First: v1,
-				Second: v2,
-				Third: v3,
+				Value: sum,
 			})
 			if err != nil {
 				log.Printf("error is %s" , err.Error())
 			} else {
-				log.Printf("Server returned %t" , message.Success)
+				if (message.Success) {
+					log.Print("Hospital returned: Success!\n all values received and verified :)\n")
+				} else {
+					log.Print("Hospital returned: still waiting for values\n")
+				}
 			}
 		} else {
 			
@@ -240,9 +242,8 @@ func randBool() bool{
 return rand.Intn(2) == 0
 }
 
-func getAllShares(m map[string]int) (n1,n2,n3 int64){
-	n1=int64(m["Alice"])
-	n2=int64(m["Bob"])
-	n3=int64(m["Charlie"])
+func getSumOfShares(m map[string]int) (sum int64){
+	sum = int64((m["Alice"]) + (m["Bob"]) + (m["Charlie"]))
+	log.Printf("Summing values from:\n Alice: %d\n Bob: %d\n Charlie: %d \n With sum %v \n", m["Alice"], m["Bob"], m["Charlie"], sum)
 	return
 }

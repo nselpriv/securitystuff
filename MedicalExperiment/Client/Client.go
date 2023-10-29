@@ -27,26 +27,17 @@ type Client struct {
 	ctx         context.Context
 	shares map[string]int
 }
-
-
 var amount_of_peers = 3
-
-type State int
-
 
 var (
 	cid = flag.Int("id", 0, "client ID")
 	serverPort = flag.Int("sport", 0, "server port")
-
 )
 
 func main () {
 	flag.Parse()
 
 	cp := int(*cid)+5001
-
-	
-
 	var name string
 	switch *cid {
 	case 0:
@@ -59,8 +50,6 @@ func main () {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-
 	client := &Client{
 		name: name,
 		id: *cid,
@@ -71,69 +60,32 @@ func main () {
 		shares: map[string]int{"Alice": -9999, "Bob": -9999,"Charlie":-9999},
 	}
 
-
-	
 	// Create listener tcp on port ownPort
 	go SetupPeerConnection(client)
 	go SetupHospitalConnection(client)
 	scanner := bufio.NewScanner(os.Stdin)
+	log.Printf("\n\nWelcome %s, please enter a number to share with the other clients or type 'hospital' to send the sum to the hospital\n\n", client.name)
 	for scanner.Scan() {
 		input := scanner.Text()
-		log.Printf("client input:  %s\n", input)
-
-		if input == "hospital" {
-			sum := getSumOfShares(client.shares)
-				message, err := client.hospitalConnection.SendPersonalInfo(context.Background(), 
-			&proto.PersonalInfo{
-				Name: client.name,
-				Value: sum,
-			})
-			if err != nil {
-				log.Printf("error is %s" , err.Error())
-			} else {
-				if (message.Success) {
-					log.Print("Hospital returned: Success!\n all values received and verified :)\n")
-				} else {
-					log.Print("Hospital returned: still waiting for values\n")
-				}
-			}
+		log.Printf("%s input:  %s\n",client.name, input)
+		if input == "hospital" || input == "" {
+			sendInfoToHospital(client,input)
 		} else {
-			
 			conv, inputerror := strconv.Atoi(input)
 			if inputerror != nil {
-				fmt.Printf("You need to share a number with the other clients \n")
+				log.Printf("You need to share a number with the other clients \n")
 				continue
 			}
-			n1,n2,n3 := MPCScramble(conv)
-			client.shares[client.name] = n1  //setting own secret share
-			log.Printf("Scrables from %v are first %v second %v third %v \n", conv, n1,n2,n3)
-			count := 0 
-			for _, c := range client.clients {
-				var share int64
-				if(count == 0){
-					share = int64(n2)
-				} else {share = int64(n3)}
-				message, err := c.Share(context.Background(), 
-			&proto.ShareInfo{
-				Share: share,
-				Name: client.name,
-			})
-			if err != nil {
-				log.Printf("error is %s" , err.Error())
-			} else {
-				log.Printf("%s\n" ,message.Status)
+			if (conv <= 0){
+				log.Printf("You need to share a number bigger than 0 with the other clients \n")
+				continue
 			}
-			count++
-			}
+			sendInfoToPeers(client,conv)
 		}
 	}
-
-
-		
 	for {
 
 	}
-
 }
 
 func loadCertsServer() credentials.TransportCredentials {
@@ -183,7 +135,6 @@ func SetupPeerConnection(client *Client) {
 		}
 		
 		var conn *grpc.ClientConn
-		log.Printf("Trying to dial: %v\n", port)
 		conn, err := grpc.Dial(fmt.Sprintf(":%v", port), grpc.WithTransportCredentials(credentials.NewClientTLSFromCert(loadCertsClient(), "")))
 		if err != nil {
 			log.Fatalf("Could not connect: %s", err)
@@ -192,6 +143,48 @@ func SetupPeerConnection(client *Client) {
 		client.clients[port] = c
 		log.Printf("Connected to: %v\n", port)
 	}
+}
+
+func sendInfoToHospital(client *Client, input string) {
+	sum := getSumOfShares(client.shares)
+				message, err := client.hospitalConnection.SendPersonalInfo(context.Background(), 
+			&proto.PersonalInfo{
+				Name: client.name,
+				Value: sum,
+			})
+			if err != nil {
+				log.Printf("error is %s" , err.Error())
+			} else {
+				if (message.Success) {
+					log.Print("Hospital returned: Success!\n all values received and verified :)\n")
+				} else {
+					log.Print("Hospital returned: still waiting for values\n")
+				}
+			}
+}
+
+func sendInfoToPeers(client *Client, conv int) {
+	n1,n2,n3 := MPCScramble(conv)
+			client.shares[client.name] = n1  //setting own secret share
+			log.Printf("Scrambles from %v are first %v second %v third %v \n", conv, n1,n2,n3)
+			count := 0 
+			for _, c := range client.clients {
+				var share int64
+				if(count == 0){
+					share = int64(n2)
+				} else {share = int64(n3)}
+				message, err := c.Share(context.Background(), 
+			&proto.ShareInfo{
+				Share: share,
+				Name: client.name,
+			})
+			if err != nil {
+				log.Printf("error is %s" , err.Error())
+			} else {
+				log.Printf("%s\n" ,message.Status)
+			}
+			count++
+			}
 }
 
 
@@ -218,8 +211,11 @@ func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, 
 }
 
 func MPCScramble (number int) (first,second,third int) {
-first = rand.Intn(number-3)
-if(randBool()){
+
+first = rand.Intn(number)
+//This is done to give us all negative numbers for more randomization
+//And to handle the case where the first number is too big. Which would cause an infinite loop in line 231
+if(randBool() || first >= number-3){
 	first = first *-1
 }
 

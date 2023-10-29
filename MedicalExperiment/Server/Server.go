@@ -48,17 +48,13 @@ func main () {
 
 func startServer (server *Server) {
 	grpcServer := grpc.NewServer(grpc.Creds(loadCerts()))
-
 	listener, err := net.Listen("tcp", ":"+strconv.Itoa(server.port))
 
 	if err != nil {
 		log.Fatalf("could not create the server %v", err)
 	}
-
 	log.Printf("Started server at port: %d\n", server.port)
-
 	proto.RegisterHospitalServer(grpcServer, server)
-
 	serveError := grpcServer.Serve(listener)
 
 	if serveError != nil {

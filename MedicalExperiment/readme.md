@@ -22,3 +22,8 @@ go run client/client.go -id 2 -sport 5120
 go run client/client.go -id 3 -sport 5120
 ```
 
+To share numbers write any non-negative number in the client terminal 
+To share numbers with the hospital press enter or write hospital in the client. 
+
+A full run of the program can be seen on page 6 in the report. 
+

@@ -76,8 +76,8 @@ func main () {
 				log.Printf("You need to share a number with the other clients \n")
 				continue
 			}
-			if (conv <= 0){
-				log.Printf("You need to share a number bigger than 0 with the other clients \n")
+			if (conv < 0){
+				log.Printf("You need to share a non negative number with the other clients \n")
 				continue
 			}
 			sendInfoToPeers(client,conv)
@@ -103,7 +103,7 @@ func loadCertsClient() *x509.CertPool {
 	certPool := x509.NewCertPool()
 caCert, err := os.ReadFile("cert.pem")
 if err != nil {
-    log.Fatalf("Failed to load server certificate: %v", err)
+    log.Fatalf("Failed to load certificate: %v", err)
 }
 certPool.AppendCertsFromPEM(caCert)
 return certPool
@@ -212,13 +212,15 @@ func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, 
 
 func MPCScramble (number int) (first,second,third int) {
 
+	if(number == 0){
+		return 0,0,0
+	}
 first = rand.Intn(number)
 //This is done to give us all negative numbers for more randomization
 //And to handle the case where the first number is too big. Which would cause an infinite loop in line 231
 if(randBool() || first >= number-3){
 	first = first *-1
 }
-
 for {
 gen := rand.Intn(number)
 if(gen + first < number){
@@ -230,7 +232,6 @@ if(gen + first < number){
 	return
 	}
 }
-
 }
 
 //generates a random bool 

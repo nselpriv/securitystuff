@@ -97,7 +97,6 @@ func loadCerts() credentials.TransportCredentials {
     if err != nil {
         log.Fatalf("Failed to load certificates: %v", err)
     }
-	// Create a gRPC server with TLS configuration
 	creds := credentials.NewTLS(&tls.Config{Certificates: []tls.Certificate{cert}})
 	return creds
 }

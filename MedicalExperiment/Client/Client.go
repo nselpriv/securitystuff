@@ -3,12 +3,13 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
+	"math/big"
 	proto "medic/Proto"
 	"net"
 	"os"
@@ -26,7 +27,7 @@ type Client struct {
 	clients     map[int32]proto.PersonClient
 	hospitalConnection proto.HospitalClient
 	ctx         context.Context
-	shares map[string]int
+	shares map[string]*big.Int
 }
 var amount_of_peers = 3
 
@@ -34,6 +35,8 @@ var (
 	cid = flag.Int("id", 0, "client ID")
 	serverPort = flag.Int("sport", 0, "server port")
 )
+
+var add,sub,mod big.Int
 
 func main () {
 	flag.Parse()
@@ -58,7 +61,7 @@ func main () {
 		ctx: ctx,
 		clients: make(map[int32]proto.PersonClient),
 		hospitalConnection: nil,
-		shares: map[string]int{"Alice": -9999, "Bob": -9999,"Charlie":-9999},
+		shares: map[string]*big.Int{"Alice": big.NewInt(-9999), "Bob": big.NewInt(-9999),"Charlie":big.NewInt(-9999)},
 	}
 
 	// Create listener tcp on port ownPort
@@ -172,8 +175,8 @@ func sendInfoToPeers(client *Client, conv int) {
 			for _, c := range client.clients {
 				var share int64
 				if(count == 0){
-					share = int64(n2)
-				} else {share = int64(n3)}
+					share = n2.Int64()
+				} else {share = n3.Int64()}
 				message, err := c.Share(context.Background(), 
 			&proto.ShareInfo{
 				Share: share,
@@ -201,9 +204,9 @@ func SetupHospitalConnection(client *Client) {
 }
 
 func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, error) {
-
+	conversion := big.NewInt(in.Share)
 	log.Printf("%s sent %d \n", in.Name, in.Share)
-	c.shares[in.Name] = int(in.Share)
+	c.shares[in.Name] = conversion
 	v := strconv.Itoa(int(in.Share))
 	
 	msg := c.name + " set " + v + " for " + in.Name
@@ -212,49 +215,22 @@ func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, 
 	}, nil
 }
 
-func MPCScramble (number int) (first,second,third int) {
 
-	if(number == 0){
-		return 0,0,0
-	}
-first = rand.Intn(number)
-//This is done to give us all negative numbers for more randomization
-//And to handle the case where the first number is too big. Which would cause an infinite loop in line 231
-if(randBool() || first >= number-3){
-	first = first *-1
-}
-for {
-gen := rand.Intn(number)
-if(gen + first < number){
-	second = gen 
-	if(randBool()){
-		second=second*-1
-		}
-	third = number - first - second 
-	return
-	}
-}
-}
+func MPCScramble2 (number int) (x1,x2,x3 *big.Int) {
+	bigPrime := big.NewInt(2147483647)
+	secret := big.NewInt(int64(number))
+	x1, _ = rand.Int(rand.Reader, bigPrime)
+	x2, _ = rand.Int(rand.Reader, bigPrime)
 
-
-func MPCScramble2 (number int) (x1,x2,x3 int) {
-
-	bigPrime := 2147483647
-
-	x1 = rand.Intn(bigPrime)
-	x2 = rand.Intn(bigPrime)
-	x3 = number - ((x1 + x2) % bigPrime)
+	x3 = sub.Sub(secret,mod.Mod(add.Add(x1,x2),bigPrime))
 	return 
 }
 
-//generates a random bool 
-func randBool() bool{
-return rand.Intn(2) == 0
-}
-
-func getSumOfShares(m map[string]int) (sum int64){
-	sum = int64((m["Alice"]) + (m["Bob"]) + (m["Charlie"]))
-	sum = sum % 2147483647 
+func getSumOfShares(m map[string]*big.Int) (sum int64){
+	temp := add.Add(add.Add(m["Alice"],(m["Bob"])),m["Charlie"])
+	bigPrime := big.NewInt(2147483647)
+	temp2 := mod.Mod(temp , bigPrime) 
+	sum = temp2.Int64()
 	log.Printf("Summing values from:\n Alice: %d\n Bob: %d\n Charlie: %d \n With sum %v \n", m["Alice"], m["Bob"], m["Charlie"], sum)
 	return
 }

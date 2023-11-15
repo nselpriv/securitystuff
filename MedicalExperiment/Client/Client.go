@@ -13,6 +13,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 )
@@ -164,7 +165,7 @@ func sendInfoToHospital(client *Client, input string) {
 }
 
 func sendInfoToPeers(client *Client, conv int) {
-	n1,n2,n3 := MPCScramble(conv)
+	n1,n2,n3 := MPCScramble2(conv)
 			client.shares[client.name] = n1  //setting own secret share
 			log.Printf("Scrambles from %v are first %v second %v third %v \n", conv, n1,n2,n3)
 			count := 0 
@@ -204,6 +205,7 @@ func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, 
 	log.Printf("%s sent %d \n", in.Name, in.Share)
 	c.shares[in.Name] = int(in.Share)
 	v := strconv.Itoa(int(in.Share))
+	
 	msg := c.name + " set " + v + " for " + in.Name
 		return &proto.Reply{
 		Status: msg,
@@ -234,6 +236,17 @@ if(gen + first < number){
 }
 }
 
+
+func MPCScramble2 (number int) (x1,x2,x3 int) {
+
+	bigPrime := 2147483647
+
+	x1 = rand.Intn(bigPrime)
+	x2 = rand.Intn(bigPrime)
+	x3 = number - ((x1 + x2) % bigPrime)
+	return 
+}
+
 //generates a random bool 
 func randBool() bool{
 return rand.Intn(2) == 0
@@ -241,6 +254,7 @@ return rand.Intn(2) == 0
 
 func getSumOfShares(m map[string]int) (sum int64){
 	sum = int64((m["Alice"]) + (m["Bob"]) + (m["Charlie"]))
+	sum = sum % 2147483647 
 	log.Printf("Summing values from:\n Alice: %d\n Bob: %d\n Charlie: %d \n With sum %v \n", m["Alice"], m["Bob"], m["Charlie"], sum)
 	return
 }

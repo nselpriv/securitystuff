@@ -16,10 +16,10 @@ The IDs are very important.
 Just use whatever port for server, just make sure to tell the clients which one. 
 
 ``` bash
-go run server/server.go -port 5120
+go run Server/server.go -port 5120
+go run client/client.go -id 0 -sport 5120
 go run client/client.go -id 1 -sport 5120
 go run client/client.go -id 2 -sport 5120
-go run client/client.go -id 3 -sport 5120
 ```
 
 To share numbers write any non-negative number in the client terminal 

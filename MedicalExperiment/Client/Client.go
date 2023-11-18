@@ -217,7 +217,7 @@ func (c *Client) Share(ctx context.Context, in *proto.ShareInfo) (*proto.Reply, 
 
 
 func MPCScramble2 (number int) (x1,x2,x3 *big.Int) {
-	bigPrime := big.NewInt(2147483647)
+	bigPrime := big.NewInt(2147483647) //this no longer samples from my own secret share 
 	secret := big.NewInt(int64(number))
 	x1, _ = rand.Int(rand.Reader, bigPrime)
 	x2, _ = rand.Int(rand.Reader, bigPrime)
